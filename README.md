@@ -4,6 +4,13 @@
 
 ```sh
 pip3 install flask
+pip3 install pycryptodome
+```
+
+## Generate key with openssl
+
+```sh
+openssl rand -base64 256 > secret.b64
 ```
 
 ## Run development server
@@ -11,6 +18,8 @@ pip3 install flask
 ```sh
 flask --app server run
 ```
+
+## 
 
 ## Example requests
 
@@ -20,4 +29,13 @@ curl -X POST -H "Content-Type: application/json" \
 http://localhost:5000/generate
 ```
 
-go to page `http://localhost:5000/pwa/<uid-return-from-generate>`
+go to page `http://localhost:5000/pwa/<id-return-from-generate>`
+
+
+using the encrypted data on this page, run:
+
+```sh
+curl -X POST -H "Content-Type: application/json" \
+-d '{"data": "encrypted_data_here"}' \
+http://localhost:5000/decrypt
+```
