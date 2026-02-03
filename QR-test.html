@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>QR-kod</title>
+    <!-- Lägg till jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Lägg till QRCode.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+
+<body>
+    <div id="qrcode"></div>
+
+    <script>
+        var qrcode = new QRCode("qrcode");
+
+        function makeCode() {
+            var text = $("#text").val() || "www.google.se"; // standardtext
+            qrcode.makeCode(text);
+        }
+
+        makeCode();
+
+        $("#text")
+            .on("blur", function () { makeCode(); })
+            .on("keydown", function (e) {
+                if (e.keyCode == 13) { makeCode(); }
+            });
+    </script>
+</body>
+
+</html>
