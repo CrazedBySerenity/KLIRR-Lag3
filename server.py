@@ -63,7 +63,7 @@ def generate_pwa():
         f.write(html_content)
 
     # Return UUID to the client
-    return jsonify({"uuid": pwa_id})
+    return jsonify({"link": f"{request.host_url}pwa/{pwa_id}"})
 
 
 @app.route("/pwa/<uuid>", methods=["GET"])
