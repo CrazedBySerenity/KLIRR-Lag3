@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BLE File Sender</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 24px;
+        max-width: 720px;
+      }
+      .row {
+        margin: 12px 0;
+      }
+      #status {
+        padding: 8px 10px;
+        background: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        min-height: 24px;
+      }
+      button:disabled {
+        opacity: 0.6;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>BLE File Sender</h1>
+    <p>
+      This is a basic Web Bluetooth demo that connects to a device advertising a
+      custom service UUID and writes a file in small chunks to a writable
+      characteristic.
+    </p>
+
+    <div class="row">
+      <button id="connect">Connect</button>
+      <button id="send" disabled>Send File</button>
+    </div>
+
+    <div class="row">
+      <input id="fileInput" type="file" />
+    </div>
+
+    <div class="row">
+      <div id="status">Idle.</div>
+    </div>
+
+    <script>
+      const SERVICE_UUID = "e61803c4-c524-40f3-82dc-0a0824dfe4d5";
+      const WRITE_CHAR_UUID = "25bbbe59-c363-4f42-ac69-7f2d44fd396d";
+      const CHUNK_SIZE = 180;
+
+      const connectBtn = document.getElementById("connect");
+      const sendBtn = document.getElementById("send");
+      const fileInput = document.getElementById("fileInput");
+      const statusEl = document.getElementById("status");
+
+      let writeChar = null;
+
+      function setStatus(text) {
+        statusEl.textContent = text;
+      }
+
+      connectBtn.addEventListener("click", async () => {
+        try {
+          setStatus("Requesting device...");
+          const device = await navigator.bluetooth.requestDevice({
+            acceptAllDevices: true,
+            optionalServices: [SERVICE_UUID],
+          });
+
+          setStatus("Connecting...");
+          const server = await device.gatt.connect();
+          const service = await server.getPrimaryService(SERVICE_UUID);
+          writeChar = await service.getCharacteristic(WRITE_CHAR_UUID);
+
+          setStatus("Connected. Choose a file and click Send File.");
+          sendBtn.disabled = false;
+        } catch (error) {
+          setStatus(`Error: ${error.message}`);
+        }
+      });
+
+      async function sendFile(file) {
+        const buf = new Uint8Array(await file.arrayBuffer());
+        for (let i = 0; i < buf.length; i += CHUNK_SIZE) {
+          const chunk = buf.slice(i, i + CHUNK_SIZE);
+          await writeChar.writeValue(chunk);
+          setStatus(`Sending... ${Math.min(i + CHUNK_SIZE, buf.length)}/${buf.length} bytes`);
+        }
+      }
+
+      sendBtn.addEventListener("click", async () => {
+        try {
+          if (!writeChar) {
+            setStatus("Not connected.");
+            return;
+          }
+          const file = fileInput.files[0];
+          if (!file) {
+            setStatus("Pick a file first.");
+            return;
+          }
+
+          setStatus("Starting send...");
+          await sendFile(file);
+          setStatus("Done.");
+        } catch (error) {
+          setStatus(`Error: ${error.message}`);
+        }
+      });
+    </script>
+  </body>
+</html>
