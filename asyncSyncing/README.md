@@ -20,6 +20,12 @@ Server runs on `http://localhost:5000`.
 - `POST /logs` — store a log entry.
 - `GET /logs` — list logs. Use `?synced=true|false` to filter.
 - `POST /sync/run` — mark unsynced logs as synced.
+- `POST /sync/central` — push unsynced logs to central DB in batches.
+
+Environment variables for central sync:
+- `CENTRAL_DB_URL` (default: `http://localhost:5001`)
+- `CENTRAL_DB_TIMEOUT` (seconds, default: `5`)
+- `CENTRAL_DB_BATCH_SIZE` (default: `50`)
 
 ## Log body fields
 
@@ -79,4 +85,8 @@ curl -s http://localhost:5000/logs
 
 ```bash
 curl -s -X POST http://localhost:5000/sync/run
+```
+
+```bash
+curl -s -X POST http://localhost:5000/sync/central
 ```
