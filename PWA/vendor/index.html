@@ -193,7 +193,9 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
     <script>
       const STORAGE_KEY = "klirr_vendor_state_v1";
       const userSummaryEl = document.getElementById("userSummary");
@@ -327,15 +329,13 @@
       };
 
       const renderQr = (payload) => {
-        const qrContainer = document.getElementById("qr");
-        qrContainer.innerHTML = "";
-        new QRCode(qrContainer, {
-          text: JSON.stringify(payload),
-          width: 220,
-          height: 220,
-          correctLevel: QRCode.CorrectLevel.L
-        });
-      };
+          const qrContainer = document.getElementById("qr");
+          qrContainer.innerHTML = "";
+          var qr = qrcode(0, 'L');
+          qr.addData(JSON.stringify(payload));
+          qr.make();
+          qrContainer.innerHTML = qr.createImgTag(6);
+        }
 
       const renderState = () => {
         const hasUser = Boolean(state.lastScannedUserPayload);
