@@ -3,11 +3,10 @@ import uuid
 import os
 from base64 import b64decode, b64encode
 
-from Crypto.Cipher import AES
-from Crypto.Hash import SHA256
-from Crypto.Random import get_random_bytes
-from Crypto.Hash import SHA256
-from Crypto.Util.Padding import pad, unpad
+from Cryptodome.Cipher import AES
+from Cryptodome.Hash import SHA256
+from Cryptodome.Random import get_random_bytes
+from Cryptodome.Util.Padding import pad, unpad
 
 app = Flask(__name__)
 
