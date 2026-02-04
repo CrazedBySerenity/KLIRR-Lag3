@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Klirr User PWA (PoC)</title>
+    <link rel="manifest" href="./manifest.json" />
+    <meta name="theme-color" content="#111111" />
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: Arial, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 20px;
+        background: #111111;
+        color: #f5f5f5;
+      }
+      h1 {
+        margin: 0 0 12px 0;
+        font-size: 22px;
+      }
+      section {
+        border: 1px solid #333333;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        background: #1b1b1b;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+      input,
+      textarea,
+      button {
+        font-size: 14px;
+      }
+      input,
+      textarea {
+        width: 100%;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #444444;
+        background: #111111;
+        color: #f5f5f5;
+        margin-bottom: 8px;
+      }
+      button {
+        padding: 8px 12px;
+        border-radius: 6px;
+        border: 1px solid #444444;
+        background: #2c2c2c;
+        color: #ffffff;
+        cursor: pointer;
+        margin-right: 8px;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .row > * {
+        flex: 1 1 140px;
+      }
+      #qr {
+        margin-top: 10px;
+        background: #ffffff;
+        padding: 8px;
+        display: inline-block;
+        border-radius: 8px;
+      }
+      pre {
+        background: #0f0f0f;
+        padding: 10px;
+        border-radius: 6px;
+        overflow-x: auto;
+      }
+      ul {
+        padding-left: 20px;
+      }
+      .status {
+        font-size: 12px;
+        color: #c9c9c9;
+      }
+      video {
+        width: 100%;
+        border-radius: 6px;
+        background: #000000;
+      }
+      canvas {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Klirr User PWA (PoC)</h1>
+
+    <section>
+      <h2>Quota Summary</h2>
+      <pre id="quotaSummary"></pre>
+    </section>
+
+    <section>
+      <h2>Pending Transactions (to send)</h2>
+      <ul id="pendingList"></ul>
+      <div class="row">
+        <div>
+          <label for="txAmount">Amount</label>
+          <input id="txAmount" type="number" step="0.01" />
+        </div>
+        <div>
+          <label for="txNote">Note</label>
+          <input id="txNote" type="text" />
+        </div>
+      </div>
+      <button id="addTx">Add Transaction</button>
+      <button id="clearPending">Clear Pending</button>
+      <div class="status" id="pendingStatus"></div>
+    </section>
+
+    <section>
+      <h2>Generate QR for Vendor</h2>
+      <button id="generateQr">Generate QR</button>
+      <div id="qr"></div>
+      <div class="status" id="qrStatus"></div>
+    </section>
+
+    <section>
+      <h2>Scan Vendor QR</h2>
+      <video id="scannerVideo" playsinline></video>
+      <canvas id="scannerCanvas"></canvas>
+      <div class="row">
+        <button id="startScan">Start Scan</button>
+        <button id="stopScan" disabled>Stop Scan</button>
+      </div>
+      <div class="status" id="scanStatus"></div>
+    </section>
+
+    <section>
+      <h2>History (received from vendor)</h2>
+      <ul id="historyList"></ul>
+    </section>
+
+    <section>
+      <button id="resetDemo">Reset Demo Data</button>
+      <div class="status" id="resetStatus"></div>
+    </section>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script>
+      const STORAGE_KEY = "klirr_user_state_v1";
+      const quotaSummaryEl = document.getElementById("quotaSummary");
+      const pendingListEl = document.getElementById("pendingList");
+      const historyListEl = document.getElementById("historyList");
+      const pendingStatusEl = document.getElementById("pendingStatus");
+      const qrStatusEl = document.getElementById("qrStatus");
+      const scanStatusEl = document.getElementById("scanStatus");
+      const resetStatusEl = document.getElementById("resetStatus");
+      const videoEl = document.getElementById("scannerVideo");
+      const canvasEl = document.getElementById("scannerCanvas");
+      const canvasCtx = canvasEl.getContext("2d");
+
+      let qrCode = null;
+      let scanStream = null;
+      let scanning = false;
+      let state = null;
+
+      const defaultState = {
+        quotaSummary: {
+          quotaId: "quota-001",
+          userId: "user-001",
+          vendorId: "vendor-001",
+          quotaLimit: 200,
+          quotaUsed: 30,
+          quotaRemaining: 170,
+          periodStart: "2026-02-01",
+          periodEnd: "2026-02-28"
+        },
+        pendingTransactions: [
+          { id: "u-tx-001", ts: new Date().toISOString(), amount: 12.5, note: "Lunch" }
+        ],
+        historyTransactions: []
+      };
+
+      const formatJson = (value) => JSON.stringify(value, null, 2);
+
+      const saveState = () => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      };
+
+      const loadState = () => {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          state = structuredClone(defaultState);
+          saveState();
+          return;
+        }
+        try {
+          state = JSON.parse(raw);
+        } catch (error) {
+          state = structuredClone(defaultState);
+          saveState();
+        }
+      };
+
+      const renderState = () => {
+        quotaSummaryEl.textContent = formatJson(state.quotaSummary);
+        pendingListEl.innerHTML = "";
+        state.pendingTransactions.forEach((tx) => {
+          const item = document.createElement("li");
+          item.textContent = `${tx.amount} | ${tx.note || "No note"} | ${tx.ts}`;
+          pendingListEl.appendChild(item);
+        });
+        historyListEl.innerHTML = "";
+        state.historyTransactions.forEach((tx) => {
+          const item = document.createElement("li");
+          item.textContent = `${tx.amount} | ${tx.note || "No note"} | ${tx.ts}`;
+          historyListEl.appendChild(item);
+        });
+      };
+
+      const buildPayload = () => ({
+        version: 1,
+        from: "user",
+        quotaSummary: state.quotaSummary,
+        newTransactions: state.pendingTransactions
+      });
+
+      const renderQr = (payload) => {
+        const qrContainer = document.getElementById("qr");
+        qrContainer.innerHTML = "";
+        qrCode = new QRCode(qrContainer, {
+          text: JSON.stringify(payload),
+          width: 220,
+          height: 220
+        });
+      };
+
+      const handleVendorPayload = (payload) => {
+        if (!payload || payload.from !== "vendor" || payload.version !== 1) {
+          scanStatusEl.textContent = "Invalid vendor payload.";
+          return;
+        }
+        if (!payload.quotaSummary) {
+          scanStatusEl.textContent = "Vendor payload missing quota summary.";
+          return;
+        }
+        state.quotaSummary = payload.quotaSummary;
+        if (Array.isArray(payload.newTransactions)) {
+          state.historyTransactions.push(
+            ...payload.newTransactions.map((tx) => ({
+              ...tx,
+              source: "vendor"
+            }))
+          );
+        }
+        state.pendingTransactions = [];
+        saveState();
+        renderState();
+        scanStatusEl.textContent = "Vendor QR applied.";
+      };
+
+      const addTransaction = () => {
+        const amount = Number.parseFloat(document.getElementById("txAmount").value);
+        const note = document.getElementById("txNote").value.trim();
+        if (Number.isNaN(amount)) {
+          pendingStatusEl.textContent = "Enter a valid amount.";
+          return;
+        }
+        const tx = {
+          id: `u-tx-${Date.now()}`,
+          ts: new Date().toISOString(),
+          amount,
+          note
+        };
+        state.pendingTransactions.push(tx);
+        saveState();
+        renderState();
+        pendingStatusEl.textContent = "Transaction added.";
+        document.getElementById("txAmount").value = "";
+        document.getElementById("txNote").value = "";
+      };
+
+      const startScan = async () => {
+        scanStatusEl.textContent = "Starting camera...";
+        try {
+          scanStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" }
+          });
+          videoEl.srcObject = scanStream;
+          await videoEl.play();
+          scanning = true;
+          document.getElementById("startScan").disabled = true;
+          document.getElementById("stopScan").disabled = false;
+          scanLoop();
+        } catch (error) {
+          scanStatusEl.textContent = "Camera access blocked or unavailable.";
+        }
+      };
+
+      const stopScan = () => {
+        scanning = false;
+        if (scanStream) {
+          scanStream.getTracks().forEach((track) => track.stop());
+          scanStream = null;
+        }
+        videoEl.pause();
+        videoEl.srcObject = null;
+        document.getElementById("startScan").disabled = false;
+        document.getElementById("stopScan").disabled = true;
+      };
+
+      const scanLoop = () => {
+        if (!scanning) return;
+        if (videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
+          canvasEl.width = videoEl.videoWidth;
+          canvasEl.height = videoEl.videoHeight;
+          canvasCtx.drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+          const imageData = canvasCtx.getImageData(0, 0, canvasEl.width, canvasEl.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert"
+          });
+          if (code && code.data) {
+            stopScan();
+            scanStatusEl.textContent = "QR detected.";
+            try {
+              const payload = JSON.parse(code.data);
+              handleVendorPayload(payload);
+            } catch (error) {
+              scanStatusEl.textContent = "QR payload is not valid JSON.";
+            }
+            return;
+          }
+        }
+        requestAnimationFrame(scanLoop);
+      };
+
+      document.getElementById("addTx").addEventListener("click", addTransaction);
+      document.getElementById("clearPending").addEventListener("click", () => {
+        state.pendingTransactions = [];
+        saveState();
+        renderState();
+        pendingStatusEl.textContent = "Pending cleared.";
+      });
+      document.getElementById("generateQr").addEventListener("click", () => {
+        const payload = buildPayload();
+        renderQr(payload);
+        qrStatusEl.textContent = "QR updated.";
+      });
+      document.getElementById("startScan").addEventListener("click", startScan);
+      document.getElementById("stopScan").addEventListener("click", stopScan);
+      document.getElementById("resetDemo").addEventListener("click", () => {
+        state = structuredClone(defaultState);
+        saveState();
+        renderState();
+        resetStatusEl.textContent = "Demo reset.";
+      });
+
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("./sw.js");
+      }
+
+      loadState();
+      renderState();
+    </script>
+  </body>
+</html>
