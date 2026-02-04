@@ -5,162 +5,200 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Klirr User PWA (PoC)</title>
     <link rel="manifest" href="./manifest.json" />
-    <meta name="theme-color" content="#111111" />
+    <meta name="theme-color" content="#0f1115" />
     <style>
       :root {
         color-scheme: light dark;
-        font-family: Arial, sans-serif;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
       }
       body {
         margin: 0;
-        padding: 20px;
-        background: #111111;
-        color: #f5f5f5;
+        padding: 24px 16px 40px;
+        background: #0f1115;
+        color: #f5f7fb;
+      }
+      .container {
+        max-width: 520px;
+        margin: 0 auto;
+      }
+      header {
+        margin-bottom: 20px;
       }
       h1 {
-        margin: 0 0 12px 0;
-        font-size: 22px;
+        margin: 0 0 6px 0;
+        font-size: 24px;
       }
-      section {
-        border: 1px solid #333333;
-        border-radius: 8px;
-        padding: 12px;
-        margin-bottom: 16px;
-        background: #1b1b1b;
-      }
-      label {
-        display: block;
-        font-size: 12px;
-        margin-bottom: 4px;
-      }
-      input,
-      textarea,
-      button {
+      p {
+        margin: 0;
+        color: #a7b0c0;
         font-size: 14px;
       }
-      input,
-      textarea {
-        width: 100%;
-        padding: 8px;
-        border-radius: 6px;
-        border: 1px solid #444444;
-        background: #111111;
-        color: #f5f5f5;
-        margin-bottom: 8px;
+      .card {
+        border: 1px solid #242a36;
+        border-radius: 16px;
+        padding: 16px;
+        margin-bottom: 16px;
+        background: #161a22;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+      }
+      .card h2 {
+        margin: 0 0 10px 0;
+        font-size: 18px;
+      }
+      .hint {
+        color: #a7b0c0;
+        font-size: 13px;
+        margin-bottom: 12px;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px 12px;
+        background: #12161f;
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .summary .label {
+        color: #a7b0c0;
+        font-size: 12px;
+      }
+      .summary .value {
+        font-weight: 600;
+        font-size: 14px;
+        text-align: right;
+      }
+      .tx-list {
+        list-style: none;
+        padding: 0;
+        margin: 8px 0 0 0;
+      }
+      .tx-item {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid #232833;
+        font-size: 14px;
+      }
+      .tx-item:last-child {
+        border-bottom: none;
+      }
+      .tx-empty {
+        color: #8d97aa;
+        font-size: 13px;
+        padding: 8px 0;
       }
       button {
-        padding: 8px 12px;
-        border-radius: 6px;
-        border: 1px solid #444444;
-        background: #2c2c2c;
-        color: #ffffff;
+        width: 100%;
+        padding: 12px 16px;
+        border-radius: 12px;
+        border: 1px solid transparent;
+        font-size: 15px;
+        font-weight: 600;
         cursor: pointer;
-        margin-right: 8px;
+      }
+      button.primary {
+        background: #2d6cdf;
+        color: #ffffff;
+      }
+      button.secondary {
+        background: #1f2430;
+        color: #f5f7fb;
+        border-color: #2b3240;
       }
       button:disabled {
         opacity: 0.6;
         cursor: not-allowed;
       }
-      .row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-      .row > * {
-        flex: 1 1 140px;
+      .button-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
       }
       #qr {
-        margin-top: 10px;
+        margin-top: 14px;
         background: #ffffff;
         padding: 8px;
         display: inline-block;
-        border-radius: 8px;
-      }
-      pre {
-        background: #0f0f0f;
-        padding: 10px;
-        border-radius: 6px;
-        overflow-x: auto;
-      }
-      ul {
-        padding-left: 20px;
+        border-radius: 12px;
       }
       .status {
+        margin-top: 10px;
         font-size: 12px;
-        color: #c9c9c9;
+        color: #9aa3b6;
       }
       video {
         width: 100%;
-        border-radius: 6px;
+        border-radius: 12px;
         background: #000000;
+        margin-bottom: 12px;
       }
       canvas {
         display: none;
       }
+      .hidden {
+        display: none;
+      }
+      .footer {
+        margin-top: 24px;
+      }
     </style>
   </head>
   <body>
-    <h1>Klirr User PWA (PoC)</h1>
+    <div class="container">
+      <header>
+        <h1>User</h1>
+        <p>Show your QR to the vendor, then scan their response.</p>
+      </header>
 
-    <section>
-      <h2>Quota Summary</h2>
-      <pre id="quotaSummary"></pre>
-    </section>
-
-    <section>
-      <h2>Pending Transactions (to send)</h2>
-      <ul id="pendingList"></ul>
-      <div class="row">
-        <div>
-          <label for="txAmount">Amount</label>
-          <input id="txAmount" type="number" step="0.01" />
+      <section class="card" id="stepOne">
+        <h2>Step 1: Show this QR</h2>
+        <div class="summary" id="summaryCurrent"></div>
+        <button class="primary" id="generateQr">Generate QR</button>
+        <div id="qrWrap" class="hidden">
+          <div id="qr"></div>
+          <div class="status" id="qrStatus"></div>
         </div>
-        <div>
-          <label for="txNote">Note</label>
-          <input id="txNote" type="text" />
+      </section>
+
+      <section class="card hidden" id="scanSection">
+        <h2>Step 2: Scan vendor response</h2>
+        <p class="hint">Point the camera at the vendor QR.</p>
+        <video id="scannerVideo" playsinline></video>
+        <canvas id="scannerCanvas"></canvas>
+        <div class="button-row">
+          <button class="secondary" id="startScan">Start Scan</button>
+          <button class="secondary" id="stopScan" disabled>Stop Scan</button>
         </div>
-      </div>
-      <button id="addTx">Add Transaction</button>
-      <button id="clearPending">Clear Pending</button>
-      <div class="status" id="pendingStatus"></div>
-    </section>
+        <div class="status" id="scanStatus"></div>
+      </section>
 
-    <section>
-      <h2>Generate QR for Vendor</h2>
-      <button id="generateQr">Generate QR</button>
-      <div id="qr"></div>
-      <div class="status" id="qrStatus"></div>
-    </section>
+      <section class="card hidden" id="updatedSection">
+        <h2>Updated quota</h2>
+        <div class="summary" id="summaryUpdated"></div>
+        <p class="hint">Transactions received:</p>
+        <ul class="tx-list" id="historyList"></ul>
+      </section>
 
-    <section>
-      <h2>Scan Vendor QR</h2>
-      <video id="scannerVideo" playsinline></video>
-      <canvas id="scannerCanvas"></canvas>
-      <div class="row">
-        <button id="startScan">Start Scan</button>
-        <button id="stopScan" disabled>Stop Scan</button>
-      </div>
-      <div class="status" id="scanStatus"></div>
-    </section>
-
-    <section>
-      <h2>History (received from vendor)</h2>
-      <ul id="historyList"></ul>
-    </section>
-
-    <section>
-      <button id="resetDemo">Reset Demo Data</button>
-      <div class="status" id="resetStatus"></div>
-    </section>
+      <section class="footer">
+        <button class="secondary" id="resetDemo">Reset demo</button>
+        <div class="status" id="resetStatus"></div>
+      </section>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <script>
       const STORAGE_KEY = "klirr_user_state_v1";
-      const quotaSummaryEl = document.getElementById("quotaSummary");
-      const pendingListEl = document.getElementById("pendingList");
+      const summaryCurrentEl = document.getElementById("summaryCurrent");
+      const summaryUpdatedEl = document.getElementById("summaryUpdated");
       const historyListEl = document.getElementById("historyList");
-      const pendingStatusEl = document.getElementById("pendingStatus");
+      const qrWrapEl = document.getElementById("qrWrap");
+      const stepOneEl = document.getElementById("stepOne");
+      const scanSectionEl = document.getElementById("scanSection");
+      const updatedSectionEl = document.getElementById("updatedSection");
       const qrStatusEl = document.getElementById("qrStatus");
       const scanStatusEl = document.getElementById("scanStatus");
       const resetStatusEl = document.getElementById("resetStatus");
@@ -168,7 +206,6 @@
       const canvasEl = document.getElementById("scannerCanvas");
       const canvasCtx = canvasEl.getContext("2d");
 
-      let qrCode = null;
       let scanStream = null;
       let scanning = false;
       let state = null;
@@ -178,19 +215,74 @@
           quotaId: "quota-001",
           userId: "user-001",
           vendorId: "vendor-001",
-          quotaLimit: 200,
-          quotaUsed: 30,
-          quotaRemaining: 170,
           periodStart: "2026-02-01",
-          periodEnd: "2026-02-28"
+          periodEnd: "2026-02-28",
+          items: [
+            { name: "Alvedon", unit: "förp", limit: 4, used: 1, remaining: 3 },
+            { name: "Drivmedel", unit: "liter", limit: 40, used: 12, remaining: 28 },
+            { name: "Mjöl", unit: "kg", limit: 5, used: 1, remaining: 4 }
+          ]
         },
         pendingTransactions: [
-          { id: "u-tx-001", ts: new Date().toISOString(), amount: 12.5, note: "Lunch" }
+          {
+            id: "u-tx-001",
+            ts: "2026-02-04T08:40:00Z",
+            product: "Alvedon",
+            amount: 1,
+            unit: "förp",
+            note: "Apoteket"
+          },
+          {
+            id: "u-tx-002",
+            ts: "2026-02-04T10:15:00Z",
+            product: "Drivmedel",
+            amount: 10,
+            unit: "liter",
+            note: "Tankning"
+          }
         ],
-        historyTransactions: []
+        historyTransactions: [],
+        qrGenerated: false,
+        vendorApplied: false
       };
 
-      const formatJson = (value) => JSON.stringify(value, null, 2);
+      const formatAmount = (value, unit) => `${Number(value).toFixed(1)} ${unit}`;
+
+      const renderSummary = (el, summary) => {
+        const items = summary.items || [];
+        el.innerHTML = items
+          .map(
+            (item) => `
+              <div class="label">${item.name}</div>
+              <div class="value">${formatAmount(item.remaining, item.unit)} kvar</div>
+            `
+          )
+          .join("") +
+          `
+            <div class="label">Giltig</div>
+            <div class="value">${summary.periodStart} – ${summary.periodEnd}</div>
+          `;
+      };
+
+      const renderTransactions = (listEl, transactions) => {
+        listEl.innerHTML = "";
+        if (!transactions.length) {
+          const item = document.createElement("li");
+          item.className = "tx-empty";
+          item.textContent = "No transactions.";
+          listEl.appendChild(item);
+          return;
+        }
+        transactions.forEach((tx) => {
+          const item = document.createElement("li");
+          item.className = "tx-item";
+          item.innerHTML = `
+            <span>${tx.product || "Produkt"}</span>
+            <strong>${formatAmount(tx.amount, tx.unit || "st")}</strong>
+          `;
+          listEl.appendChild(item);
+        });
+      };
 
       const saveState = () => {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -212,19 +304,16 @@
       };
 
       const renderState = () => {
-        quotaSummaryEl.textContent = formatJson(state.quotaSummary);
-        pendingListEl.innerHTML = "";
-        state.pendingTransactions.forEach((tx) => {
-          const item = document.createElement("li");
-          item.textContent = `${tx.amount} | ${tx.note || "No note"} | ${tx.ts}`;
-          pendingListEl.appendChild(item);
-        });
-        historyListEl.innerHTML = "";
-        state.historyTransactions.forEach((tx) => {
-          const item = document.createElement("li");
-          item.textContent = `${tx.amount} | ${tx.note || "No note"} | ${tx.ts}`;
-          historyListEl.appendChild(item);
-        });
+        renderSummary(summaryCurrentEl, state.quotaSummary);
+        renderTransactions(historyListEl, state.historyTransactions);
+
+        qrWrapEl.classList.toggle("hidden", !state.qrGenerated);
+        stepOneEl.classList.toggle("hidden", state.vendorApplied);
+        scanSectionEl.classList.toggle("hidden", !state.qrGenerated || state.vendorApplied);
+        updatedSectionEl.classList.toggle("hidden", !state.vendorApplied);
+        if (state.vendorApplied) {
+          renderSummary(summaryUpdatedEl, state.quotaSummary);
+        }
       };
 
       const buildPayload = () => ({
@@ -237,7 +326,7 @@
       const renderQr = (payload) => {
         const qrContainer = document.getElementById("qr");
         qrContainer.innerHTML = "";
-        qrCode = new QRCode(qrContainer, {
+        new QRCode(qrContainer, {
           text: JSON.stringify(payload),
           width: 220,
           height: 220
@@ -256,37 +345,14 @@
         state.quotaSummary = payload.quotaSummary;
         if (Array.isArray(payload.newTransactions)) {
           state.historyTransactions.push(
-            ...payload.newTransactions.map((tx) => ({
-              ...tx,
-              source: "vendor"
-            }))
+            ...payload.newTransactions.map((tx) => ({ ...tx, source: "vendor" }))
           );
         }
         state.pendingTransactions = [];
+        state.vendorApplied = true;
         saveState();
         renderState();
         scanStatusEl.textContent = "Vendor QR applied.";
-      };
-
-      const addTransaction = () => {
-        const amount = Number.parseFloat(document.getElementById("txAmount").value);
-        const note = document.getElementById("txNote").value.trim();
-        if (Number.isNaN(amount)) {
-          pendingStatusEl.textContent = "Enter a valid amount.";
-          return;
-        }
-        const tx = {
-          id: `u-tx-${Date.now()}`,
-          ts: new Date().toISOString(),
-          amount,
-          note
-        };
-        state.pendingTransactions.push(tx);
-        saveState();
-        renderState();
-        pendingStatusEl.textContent = "Transaction added.";
-        document.getElementById("txAmount").value = "";
-        document.getElementById("txNote").value = "";
       };
 
       const startScan = async () => {
@@ -343,17 +409,13 @@
         requestAnimationFrame(scanLoop);
       };
 
-      document.getElementById("addTx").addEventListener("click", addTransaction);
-      document.getElementById("clearPending").addEventListener("click", () => {
-        state.pendingTransactions = [];
-        saveState();
-        renderState();
-        pendingStatusEl.textContent = "Pending cleared.";
-      });
       document.getElementById("generateQr").addEventListener("click", () => {
         const payload = buildPayload();
         renderQr(payload);
-        qrStatusEl.textContent = "QR updated.";
+        state.qrGenerated = true;
+        saveState();
+        renderState();
+        qrStatusEl.textContent = "QR ready. Show this to the vendor.";
       });
       document.getElementById("startScan").addEventListener("click", startScan);
       document.getElementById("stopScan").addEventListener("click", stopScan);
