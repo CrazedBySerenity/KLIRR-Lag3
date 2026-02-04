@@ -214,6 +214,12 @@
       let scanning = false;
       let state = null;
 
+      const PRODUCTS = [
+        { name: "Alvedon", unit: "förp" },
+        { name: "Drivmedel", unit: "liter" },
+        { name: "Mjöl", unit: "kg" }
+      ];
+
       const defaultState = {
         lastScannedUserPayload: null,
         vendorTransactions: [
@@ -248,11 +254,7 @@
               <div class="value">${formatAmount(item.remaining, item.unit)} kvar</div>
             `
           )
-          .join("") +
-          `
-            <div class="label">Giltig</div>
-            <div class="value">${summary.periodStart} – ${summary.periodEnd}</div>
-          `;
+          .join("");
       };
 
       const renderTransactions = (listEl, transactions) => {
@@ -295,31 +297,32 @@
       };
 
       const buildUpdatedSummary = (payload) => {
-        const summary = { ...payload.quotaSummary };
-        const items = Array.isArray(summary.items) ? summary.items.map((item) => ({ ...item })) : [];
-        const transactions = Array.isArray(payload.newTransactions) ? payload.newTransactions : [];
+        const summary = payload.q || {};
+        const remaining = Array.isArray(summary.r) ? [...summary.r] : PRODUCTS.map(() => 0);
+        const transactions = Array.isArray(payload.t) ? payload.t : [];
 
         transactions.forEach((tx) => {
-          const match = items.find((item) => item.name === tx.product);
-          if (!match) return;
-          const amount = Number(tx.amount) || 0;
-          match.used = (Number(match.used) || 0) + amount;
-          match.remaining = Math.max(0, (Number(match.remaining) || 0) - amount);
+          const index = Number(tx[0]);
+          const amount = Number(tx[1]) || 0;
+          if (Number.isNaN(index) || index < 0 || index >= remaining.length) return;
+          remaining[index] = Math.max(0, (Number(remaining[index]) || 0) - amount);
         });
 
-        summary.items = items;
-        return summary;
+        return { r: remaining };
       };
 
       const buildResponsePayload = () => {
         const userPayload = state.lastScannedUserPayload;
-        if (!userPayload || !userPayload.quotaSummary) return null;
+        if (!userPayload || !userPayload.q) return null;
         const summary = buildUpdatedSummary(userPayload);
         return {
-          version: 1,
-          from: "vendor",
-          quotaSummary: summary,
-          newTransactions: state.vendorTransactions
+          v: 1,
+          f: "v",
+          q: summary,
+          t: state.vendorTransactions.map((tx) => [
+            PRODUCTS.findIndex((product) => product.name === tx.product),
+            tx.amount
+          ])
         };
       };
 
@@ -329,7 +332,8 @@
         new QRCode(qrContainer, {
           text: JSON.stringify(payload),
           width: 220,
-          height: 220
+          height: 220,
+          correctLevel: QRCode.CorrectLevel.L
         });
       };
 
@@ -344,17 +348,31 @@
 
         if (hasUser) {
           const payload = state.lastScannedUserPayload;
-          renderSummary(userSummaryEl, payload.quotaSummary);
-          renderTransactions(userTxListEl, payload.newTransactions || []);
+          const summary = payload.q || {};
+          renderSummary(userSummaryEl, {
+            items: (summary.r || []).map((remaining, index) => ({
+              name: PRODUCTS[index]?.name || "Produkt",
+              unit: PRODUCTS[index]?.unit || "st",
+              remaining
+            }))
+          });
+          renderTransactions(
+            userTxListEl,
+            (payload.t || []).map((tx) => ({
+              product: PRODUCTS[tx[0]]?.name || "Produkt",
+              amount: tx[1],
+              unit: PRODUCTS[tx[0]]?.unit || "st"
+            }))
+          );
         }
       };
 
       const handleUserPayload = (payload) => {
-        if (!payload || payload.from !== "user" || payload.version !== 1) {
+        if (!payload || payload.f !== "u" || payload.v !== 1) {
           scanStatusEl.textContent = "Invalid user payload.";
           return;
         }
-        if (!payload.quotaSummary) {
+        if (!payload.q || !Array.isArray(payload.q.r)) {
           scanStatusEl.textContent = "User payload missing quota summary.";
           return;
         }

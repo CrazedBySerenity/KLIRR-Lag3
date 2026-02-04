@@ -156,7 +156,6 @@
       <section class="card" id="stepOne">
         <h2>Step 1: Show this QR</h2>
         <div class="summary" id="summaryCurrent"></div>
-        <button class="primary" id="generateQr">Generate QR</button>
         <div id="qrWrap" class="hidden">
           <div id="qr"></div>
           <div class="status" id="qrStatus"></div>
@@ -168,10 +167,6 @@
         <p class="hint">Point the camera at the vendor QR.</p>
         <video id="scannerVideo" playsinline></video>
         <canvas id="scannerCanvas"></canvas>
-        <div class="button-row">
-          <button class="secondary" id="startScan">Start Scan</button>
-          <button class="secondary" id="stopScan" disabled>Stop Scan</button>
-        </div>
         <div class="status" id="scanStatus"></div>
       </section>
 
@@ -183,6 +178,7 @@
       </section>
 
       <section class="footer">
+        <button class="primary" id="primaryAction"></button>
         <button class="secondary" id="resetDemo">Reset demo</button>
         <div class="status" id="resetStatus"></div>
       </section>
@@ -202,6 +198,7 @@
       const qrStatusEl = document.getElementById("qrStatus");
       const scanStatusEl = document.getElementById("scanStatus");
       const resetStatusEl = document.getElementById("resetStatus");
+      const primaryActionEl = document.getElementById("primaryAction");
       const videoEl = document.getElementById("scannerVideo");
       const canvasEl = document.getElementById("scannerCanvas");
       const canvasCtx = canvasEl.getContext("2d");
@@ -210,13 +207,17 @@
       let scanning = false;
       let state = null;
 
+      const PRODUCTS = [
+        { name: "Alvedon", unit: "förp" },
+        { name: "Drivmedel", unit: "liter" },
+        { name: "Mjöl", unit: "kg" }
+      ];
+
       const defaultState = {
         quotaSummary: {
           quotaId: "quota-001",
           userId: "user-001",
           vendorId: "vendor-001",
-          periodStart: "2026-02-01",
-          periodEnd: "2026-02-28",
           items: [
             { name: "Alvedon", unit: "förp", limit: 4, used: 1, remaining: 3 },
             { name: "Drivmedel", unit: "liter", limit: 40, used: 12, remaining: 28 },
@@ -257,11 +258,7 @@
               <div class="value">${formatAmount(item.remaining, item.unit)} kvar</div>
             `
           )
-          .join("") +
-          `
-            <div class="label">Giltig</div>
-            <div class="value">${summary.periodStart} – ${summary.periodEnd}</div>
-          `;
+          .join("");
       };
 
       const renderTransactions = (listEl, transactions) => {
@@ -308,19 +305,40 @@
         renderTransactions(historyListEl, state.historyTransactions);
 
         qrWrapEl.classList.toggle("hidden", !state.qrGenerated);
-        stepOneEl.classList.toggle("hidden", state.vendorApplied);
-        scanSectionEl.classList.toggle("hidden", !state.qrGenerated || state.vendorApplied);
+        stepOneEl.classList.toggle("hidden", scanning || state.vendorApplied);
+        scanSectionEl.classList.toggle("hidden", !scanning || state.vendorApplied);
         updatedSectionEl.classList.toggle("hidden", !state.vendorApplied);
         if (state.vendorApplied) {
           renderSummary(summaryUpdatedEl, state.quotaSummary);
         }
+
+        if (state.vendorApplied) {
+          primaryActionEl.classList.add("hidden");
+        } else {
+          primaryActionEl.classList.remove("hidden");
+          if (!state.qrGenerated) {
+            primaryActionEl.textContent = "Generate QR code";
+          } else if (scanning) {
+            primaryActionEl.textContent = "Stop scan";
+          } else {
+            primaryActionEl.textContent = "Scan vendor code";
+          }
+        }
       };
 
       const buildPayload = () => ({
-        version: 1,
-        from: "user",
-        quotaSummary: state.quotaSummary,
-        newTransactions: state.pendingTransactions
+        v: 1,
+        f: "u",
+        q: {
+          r: PRODUCTS.map((product) => {
+            const item = state.quotaSummary.items.find((i) => i.name === product.name);
+            return item ? item.remaining : 0;
+          })
+        },
+        t: state.pendingTransactions.map((tx) => [
+          PRODUCTS.findIndex((product) => product.name === tx.product),
+          tx.amount
+        ])
       });
 
       const renderQr = (payload) => {
@@ -329,23 +347,41 @@
         new QRCode(qrContainer, {
           text: JSON.stringify(payload),
           width: 220,
-          height: 220
+          height: 220,
+          correctLevel: QRCode.CorrectLevel.L
         });
       };
 
       const handleVendorPayload = (payload) => {
-        if (!payload || payload.from !== "vendor" || payload.version !== 1) {
+        if (!payload || payload.f !== "v" || payload.v !== 1) {
           scanStatusEl.textContent = "Invalid vendor payload.";
           return;
         }
-        if (!payload.quotaSummary) {
+        if (!payload.q || !Array.isArray(payload.q.r)) {
           scanStatusEl.textContent = "Vendor payload missing quota summary.";
           return;
         }
-        state.quotaSummary = payload.quotaSummary;
-        if (Array.isArray(payload.newTransactions)) {
+        state.quotaSummary = {
+          ...state.quotaSummary,
+          items: PRODUCTS.map((product, index) => ({
+            name: product.name,
+            unit: product.unit,
+            remaining: payload.q.r[index] ?? 0,
+            used: 0,
+            limit: payload.q.r[index] ?? 0
+          }))
+        };
+        if (Array.isArray(payload.t)) {
           state.historyTransactions.push(
-            ...payload.newTransactions.map((tx) => ({ ...tx, source: "vendor" }))
+            ...payload.t.map((tx) => {
+              const product = PRODUCTS[tx[0]] || { name: "Produkt", unit: "st" };
+              return {
+                product: product.name,
+                amount: tx[1],
+                unit: product.unit,
+                source: "vendor"
+              };
+            })
           );
         }
         state.pendingTransactions = [];
@@ -364,8 +400,7 @@
           videoEl.srcObject = scanStream;
           await videoEl.play();
           scanning = true;
-          document.getElementById("startScan").disabled = true;
-          document.getElementById("stopScan").disabled = false;
+          renderState();
           scanLoop();
         } catch (error) {
           scanStatusEl.textContent = "Camera access blocked or unavailable.";
@@ -380,8 +415,7 @@
         }
         videoEl.pause();
         videoEl.srcObject = null;
-        document.getElementById("startScan").disabled = false;
-        document.getElementById("stopScan").disabled = true;
+        renderState();
       };
 
       const scanLoop = () => {
@@ -409,16 +443,23 @@
         requestAnimationFrame(scanLoop);
       };
 
-      document.getElementById("generateQr").addEventListener("click", () => {
-        const payload = buildPayload();
-        renderQr(payload);
-        state.qrGenerated = true;
-        saveState();
-        renderState();
-        qrStatusEl.textContent = "QR ready. Show this to the vendor.";
+      primaryActionEl.addEventListener("click", () => {
+        if (!state.qrGenerated) {
+          const payload = buildPayload();
+          renderQr(payload);
+          state.qrGenerated = true;
+          saveState();
+          renderState();
+          qrStatusEl.textContent = "QR ready. Show this to the vendor.";
+          return;
+        }
+        if (scanning) {
+          stopScan();
+          scanStatusEl.textContent = "Scan stopped.";
+          return;
+        }
+        startScan();
       });
-      document.getElementById("startScan").addEventListener("click", startScan);
-      document.getElementById("stopScan").addEventListener("click", stopScan);
       document.getElementById("resetDemo").addEventListener("click", () => {
         state = structuredClone(defaultState);
         saveState();
